@@ -2,7 +2,7 @@ import csv
 import os
 import subprocess
 import pathlib
- 
+
 main_directory = os.getcwd()
 
 def create_folders_from_csv(main_folder):
@@ -18,9 +18,9 @@ def create_folders_from_csv(main_folder):
                     csv_reader = csv.reader(csv_file)
                     next(csv_reader)  # Skip the header row
                     for row in csv_reader:
-                        if row:
-                            folder_name = row[-1].strip()
-                            if folder_name != 'DONOTCREATE':
+                        if len(row) >= 4:  # Check if row has at least 4 elements
+                            folder_name = row[3].strip()
+                            if folder_name and folder_name != 'DONOTCREATE': # folder_name must exist (not None) and must not be equal to 'DONOTCREATE'
                                 folder_path = os.path.join(main_folder, folder_name)
                                 os.makedirs(folder_path, exist_ok=True)  # Create folder if it doesn't exist
                                 folders.add(folder_name)  # Add folder name to set   
