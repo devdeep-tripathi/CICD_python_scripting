@@ -52,7 +52,7 @@ def replace_in_tf_config(tf_config_file, azurerm_config):
 
     # Check if file exist
     if not os.path.exists(azurerm_config):
-        print("Error: Append file does not exist.")
+        print("Error: Replace file does not exist.")
         return
     
     # Read terraform config tf file
@@ -113,7 +113,7 @@ def remove_matching_content(cfg_failure_path, remove_file):
 
     # Check if file exist
     if not os.path.exists(remove_file):
-        print("Error: Append file does not exist.")
+        print("Error: Remove file does not exist.")
         return
     
     # Read terraform config tf file
