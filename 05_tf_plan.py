@@ -30,21 +30,25 @@ def create_import_file(row):
 # Function to run terraform commands 
 def run_terraform_command(command, folder_path):
     print(f"Running '{command}' in folder: {folder_path}")
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder_path)
+    process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder_path)
     out, err = process.communicate()
     if out:
-        print(out.decode('utf-8'))
+        print(out.decode("utf-8"))
     if err:
-        print(err.decode('utf-8'))
+        print(err.decode("utf-8"))
     return process.returncode
 
 def terraform_plan(outfilename, folder_path):
-    generate_cmd = f"terraform plan -generate-config-out={outfilename}.tf"
+    generate_cmd = f"terraform plan -generate-config-out={outfilename}.tf -no-color"
     print(generate_cmd)
     return_code_plan = run_terraform_command(generate_cmd, folder_path)
     if return_code_plan != 0:
         print(f"Failed to run 'terraform plan' for file '{outfilename}'.tf in folder '{folder_path}'. Skipping apply.")
-        shutil.move(os.path.join(folder_path, f"{outfilename}.tf"), os.path.join(folder_path, "cfg-failures"))
+        if (os.path.isfile(f"{folder_path}/{outfilename}.tf")):
+            shutil.move((f"{folder_path}/{outfilename}.tf"),(f"{folder_path}/cfg-failures"))
+            shutil.move((f"{folder_path}/{outfilename}-tf-import.tf"),(f"{folder_path}/importfiles"))
+        else:
+            print (f"Failed to generate config file for {outfilename}")
     return return_code_plan
 
 # Function to update terraform config file with the help of replace_config cfg file
@@ -52,7 +56,7 @@ def replace_in_tf_config(tf_config_file, azurerm_config):
 
     # Check if file exist
     if not os.path.exists(azurerm_config):
-        print("Error: Replace file does not exist.")
+        print("Error: Append file does not exist.")
         return
     
     # Read terraform config tf file
@@ -75,12 +79,18 @@ def replace_in_tf_config(tf_config_file, azurerm_config):
 
 # Function to run terraform plan without config out
 def terraform_plan_wocfgout(folder_path):
-    generate_cmd = "terraform plan"
+    generate_cmd = "terraform plan -no-color"
     print(generate_cmd)
     return_code_plan = run_terraform_command(generate_cmd, folder_path)
     if return_code_plan != 0:
         print(f"Failed to run 'terraform plan' in folder '{folder_path}'. Skipping apply.")
-        shutil.move(os.path.join(folder_path, "cfg-failures"), os.path.join(folder_path, "cfg-failures"))
+        if (os.path.isfile(f"{folder_path}/{outfilename}.tf")):
+            shutil.move((f"{folder_path}/{outfilename}.tf"),(f"{folder_path}/cfg-failures"))
+            shutil.move((f"{folder_path}/{outfilename}-tf-import.tf"),(f"{folder_path}/importfiles"))
+        else:
+            print ("Moving files after successful remediation to temp folder.")
+            shutil.move((f"{folder_path}/{outfilename}.tf"),(f"{fp}/temp"))
+            shutil.move((f"{folder_path}/{outfilename}-tf-import.tf"),(f"{fp}/temp"))
     return return_code_plan
 
 # Function to append the code block to tf config file from the append_config cfg file
@@ -113,7 +123,7 @@ def remove_matching_content(cfg_failure_path, remove_file):
 
     # Check if file exist
     if not os.path.exists(remove_file):
-        print("Error: Remove file does not exist.")
+        print("Error: Append file does not exist.")
         return
     
     # Read terraform config tf file
@@ -166,20 +176,28 @@ with open(csv_file_path, newline='') as cfgfile:
             print(f"return code of plan '{rc}'")
             if rc != 0:
                 print("Plan has failed. Fixing the failure.")
-                # Calling function to replace some values in the terraform config tf file
-                replace_in_tf_config(cfg_failure_path, azurerm_config)
-                # Calling function to append code block to the terraform config tf file 
-                add_code_block(cfg_failure_path, append_file)
-                # Calling function to remove code block from the terraform config tf file  
-                remove_matching_content(cfg_failure_path, remove_file)
-                # Back-up the terraform config tf file
-                shutil.copy(cfg_failure_path, backup_file_path)
-                # Move terraform config tf file to its parent folder
-                shutil.move(cfg_failure_path, move_file_path)
-                terraform_plan_wocfgout(fp)
-                continue
+                if (os.path.exists(cfg_failure_path)):
+                    # Back-up the terraform config tf file
+                    shutil.copy(cfg_failure_path, backup_file_path)
+                    # Calling function to replace some values in the terraform config tf file
+                    replace_in_tf_config(cfg_failure_path, azurerm_config)
+                    # Calling function to append code block to the terraform config tf file 
+                    add_code_block(cfg_failure_path, append_file)
+                    # Calling function to remove code block from the terraform config tf file  
+                    remove_matching_content(cfg_failure_path, remove_file)
+                    # Move terraform config tf file to its parent folder
+                    shutil.move(cfg_failure_path, move_file_path)
+                    shutil.move((f"{fp}/importfiles/{outfilename}-tf-import.tf"),(f"{fp}"))
+                    terraform_plan_wocfgout(fp)
+                    continue
+                else:
+                    print("No tf file present to fix failures. Please check manually.")
+                    shutil.move((f"{fp}/{outfilename}-tf-import.tf"),(f"{fp}/temp"))
             else:
                 print(f"Plan Complete for {outfilename}")
+                print(f"Moving {outfilename} file to temp folder.")
+                shutil.move((f"{fp}/{outfilename}.tf"),(f"{fp}/temp"))
+                shutil.move((f"{fp}/{outfilename}-tf-import.tf"),(f"{fp}/temp"))
         else:
             print("Encountered DONOTCREATE Resource Type. Skipping iteration.")
             print("Continue with next Resource Type")
